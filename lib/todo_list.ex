@@ -31,6 +31,7 @@ defmodule TodoList do
   end
 
   #Server
+  @impl true
   def handle_call({:create, name}, _from, list) do
     if Enum.find(list, fn element ->
       element.name == name
@@ -42,31 +43,46 @@ defmodule TodoList do
     end
   end
 
+  @impl true
   def handle_call(:view, _from, list) do
     {:reply, list, list}
   end
 
+  @impl true
   def handle_call({:delete, name}, _from, list) do
     deleted_task = Enum.find(list, {:error, :not_found}, fn element -> element.name == name end)
     {:reply, {:ok, deleted_task}, list -- [deleted_task]}
   end
 
+  @impl true
   def handle_call({:find, name}, _from, list) do
     task = Enum.find(list, {:error, :not_found}, fn element -> element.name == name end)
     {:reply, {:ok, task}, list}
   end
 
+  @impl true
   def handle_call({:done, name}, _from, list) do
-    new_state= %{Enum.find(list, {:error, :not_found}, fn element -> element.name == name end) | done: true}
-    new_list = [new_state | list -- [Enum.find(list, {:error, :not_found}, fn element -> element.name == name end)]]
-    {:reply, {:ok, new_state}, new_list}
+    task_to_change = Enum.find(list, {:error, :not_found}, fn element -> element.name == name end)
+    if task_to_change != {:error, :not_found} do
+      new_state= %{task_to_change | done: true}
+      new_list = [new_state | Enum.reduce(list, [], fn x, acc -> if x.name != name do [x | acc] else acc end end)]
+      {:reply, {:ok, new_state}, new_list}
+    #[all_tasks | new_state] = Enum.reduce(list, [[], []], fn x, acc -> if x.name != name do [x | Enum.at(acc, 0)] else [ %{x | done: true} | Enum.at(acc, 1)] end end)
+    #new_state = Enum.reduce(list, [[%Task{done: true}], [%Task{}]], fn x, acc -> if x.name != name do [x | all_tasks] else [ %{x | done: true} | done_task] end end)
+    #{:reply, {:ok, new_state}, [new_state, new_list]}
+    #{:reply, {:ok, new_state}, [new_state] ++ [all_tasks]}
+    else
+      {:reply, task_to_change, list}
+    end
   end
 
+  @impl true
   def handle_call(:sort, _from, list) do
     sorted_list = Enum.sort_by(list, &(&1.created_at), :desc)
     {:reply, {:ok, sorted_list}, list}
   end
 
+  @impl true
   def init(list) do
     IO.inspect({:ok, list})
   end
